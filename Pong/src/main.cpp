@@ -1,5 +1,5 @@
-﻿#include <GLFW/glfw3.h>
-#include <glad/glad.h>
+﻿#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <string>
 #include <iostream>
 #include <sstream>
@@ -43,7 +43,6 @@ void createWindow(GLFWwindow*& window, const char* title, unsigned int width, un
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-    glViewport(0, 0, width, height);
 }
 
 // load GLAD library
@@ -330,8 +329,10 @@ int main() {
         return -1;
     }
 
+    glViewport(0, 0, scrWidth, scrHeight);
+
     // shaders
-    shaderProgram = genShaderProgram("main.vs", "main.fs");
+    shaderProgram = genShaderProgram("src/main.vs", "src/main.fs");
     setOrthographicProjection(shaderProgram, 0, scrWidth, 0, scrHeight, 0.0f, 1.0f);
 
     // setup vertex data
