@@ -10,47 +10,169 @@ unsigned int scrWidth = 800;
 unsigned int scrHeight = 600;
 const char* title = "Pong";
 
+GLuint shaderProgram;
+
 
 /*
     initialization methods
 */
 
 // initialize GLFW
-void initGLFW(unsigned int versionMajor, unsigned int versionMinor) {}
+void initGLFW(unsigned int versionMajor, unsigned int versionMinor)
+{
+    glfwInit();
+
+    // pass in window params
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, versionMajor);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, versionMinor);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    // macos specific parameter
+#ifdef __APPLE__
+    glfwWindowHintGLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+}
 
 // create window
-void createWindow(GLFWwindow*& window, const char* title, unsigned int width, unsigned int height, GLFWframebuffersizefun framebufferSizeCallback) {}
-
-// callback for window size change
-void framebufferSizeCallback(GLFWwindow* window, int width, int height) {}
+void createWindow(GLFWwindow*& window, const char* title, unsigned int width, unsigned int height, GLFWframebuffersizefun framebufferSizeCallback)
+{
+    window = glfwCreateWindow(width, height, title, NULL, NULL);
+    if (!window)
+    {
+        return;
+    }
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+    glViewport(0, 0, width, height);
+}
 
 // load GLAD library
-bool loadGlad() {}
+bool loadGlad()
+{
+    return gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+}
 
 /*
     shader methods
 */
 
 // read file
-std::string readFile(const char* filename) {}
+std::string readFile(const char* filename)
+{
+    std::ifstream file;
+    std::stringstream buf;
+
+    std::string ret = "";
+
+    // open file
+    file.open(filename);
+
+    if (file.is_open())
+    {
+        // read buffer
+        buf << file.rdbuf();
+        ret = buf.str();
+    }
+    else
+    {
+        std::cout << "Could not open" << filename << std:: endl;
+    }
+
+    // close file
+    file.close();
+
+    return ret;
+}
 
 //generate shader
-int genShader(const char* filepath, GLenum type) {}
+int genShader(const char* filepath, GLenum type)
+{
+    std::string shaderSrc = readFile(filepath);
+    const GLchar* shader = shaderSrc.c_str();
+
+    // build and compile shader
+    int shaderObj = glCreateShader(type);
+    glShaderSource(shaderObj, 1, &shader, NULL);
+    glCompileShader(shaderObj);
+
+    // check for errors
+    int success;
+    char infolog[512];
+    glGetShaderiv(shaderObj, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(shaderObj, 512, NULL, infolog);
+        std::cout << "Error in shader compilation: " << infolog << std::endl;
+        return -1;
+    }
+
+    return shaderObj;
+}
 
 //generate shader program
-int genShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath) {}
+int genShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath)
+{
+    int shaderProgram = glCreateProgram();
+
+    // compile shaders
+    int vertexShader = genShader(vertexShaderPath, GL_VERTEX_SHADER);
+    int fragmentShader = genShader(fragmentShaderPath, GL_FRAGMENT_SHADER);
+
+    if (vertexShader == -1 || fragmentShader == -1)
+    {
+        return -1;
+    }
+
+    // link shaders
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+
+    // check for errors
+    int success;
+    char infolog[512];
+    glGetShaderiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(shaderProgram, 512, NULL, infolog);
+        std::cout << "Error in shader linking: " << infolog << std::endl;
+        return -1;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    return shaderProgram;
+}
 
 // bind shader
-void bindShader (int shaderProgram) {}
+void bindShader (int shaderProgram)
+{
+    glUseProgram(shaderProgram);
+}
 
 // set projection
 void setOrthographicProjection(int shaderProgram,
     float left, float right,
     float bottom, float top,
-    float near,float far) {}
+    float near,float far)
+{
+    float mat[4][4] = {
+        { 2.0f / (right - left), 0.0f, 0.0f, 0.0f },
+        { 0.0f, 2.0f / (top - bottom), 0.0f, 0.0f },
+        { 0.0f, 0.0f, -2.0f / (far - near), 0.0f },
+        { -(right + left) / (right - left), -(top + bottom) / (top - bottom), -(far + near) / (far - near), 1.0f }
+    };
+
+    bindShader(shaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, &mat[0][0]);
+}
 
 // delete shader
-void deleteShader(int shaderProgram) {}
+void deleteShader(int shaderProgram)
+{
+    glDeleteShader(shaderProgram);
+}
 
 /*
     Vertex Array Object / Buffer Object Methods
@@ -67,51 +189,117 @@ struct VAO
 };
 
 // generate VAO
-void genVAO(VAO* vao) {}
+void genVAO(VAO* vao)
+{
+    glGenVertexArrays(1, &vao->val);
+    glBindVertexArray(vao->val);
+}
 
 // generate buffer of certain type and set data
 template<typename T>
-void genBufferObject(GLuint& bo, GLenum type, GLuint noElements, T* data, GLenum usage) {}
+void genBufferObject(GLuint& bo, GLenum type, GLuint noElements, T* data, GLenum usage)
+{
+    glGenBuffers(1, &bo);
+    glBindBuffer(type, bo);
+    glBufferData(type, noElements * sizeof(T), data, usage);
+}
 
 // update data in a buffer object
 template<typename T>
-void updateData(GLuint& bo, GLintptr offset, GLuint noElements, T* data) {}
+void updateData(GLuint& bo, GLintptr offset, GLuint noElements, T* data)
+{
+    glBindBuffer(GL_ARRAY_BUFFER, bo);
+    glBufferSubData(GL_ARRAY_BUFFER, offset, noElements * sizeof(T), data);
+}
 
 // set attribute pointers
 template<typename T>
-void setAttPointer(GLuint& bo, GLuint idx, GLint size, GLenum type, GLuint stride, GLuint offset, GLuint divisor =0) {}
+void setAttPointer(GLuint& bo, GLuint idx, GLint size, GLenum type, GLuint stride, GLuint offset, GLuint divisor =0)
+{
+    glBindBuffer(GL_ARRAY_BUFFER, bo);
+    glVertexAttribPointer(idx, size, type, GL_FALSE, stride * sizeof(T), (void*)(offset * sizeof(T)));
+    glEnableVertexAttribArray(idx);
+    if (divisor > 0) {
+        // reset _idx_ attribute every _divisor_ iteration through instances
+        glVertexAttribDivisor(idx, divisor);
+    }
+}
 
 // draw VAO
-void draw(VAO vao, GLenum mode, GLuint count, GLenum type, GLint indices, GLuint instanceCount = 1) {}
+void draw(VAO vao, GLenum mode, GLuint count, GLenum type, GLint indices, GLuint instanceCount = 1)
+{
+    glBindVertexArray(vao.val);
+    glDrawElementsInstanced(mode, count, type, (void*)indices, instanceCount);
+}
 
 //unbind Buffer
-void unbindBuffer(GLenum type) {}
+void unbindBuffer(GLenum type)
+{
+    glBindBuffer(type, 0);
+}
 
 // unbind VAO
-void unbindVAO() {}
+void unbindVAO()
+{
+    glBindVertexArray(0);
+}
 
 // deallocate VAO/VBO memory
-void cleanup (VAO vao) {}
+void cleanup (VAO vao)
+{
+    glDeleteBuffers(1, &vao.posVBO);
+    glDeleteBuffers(1, &vao.offsetVBO);
+    glDeleteBuffers(1, &vao.sizeVBO);
+    glDeleteBuffers(1, &vao.EBO);
+    glDeleteVertexArrays(1, &vao.val);
+}
 
 /*
     main loop methods
 */
 
+// callback for window size change
+void framebufferSizeCallback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+    scrWidth = width;
+    scrHeight = height;
+
+    // update projection matrix
+    setOrthographicProjection(shaderProgram, 0, width, 0, height, 0.0f, 1.0f);
+}
+
 // process input
-void processInput(GLFWwindow* window) {}
+void processInput(GLFWwindow* window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, true);
+    }
+}
 
 // clear screen
-void clearScreen() {}
+void clearScreen()
+{
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+}
 
 // new frame
-void newFrame(GLFWwindow* window) {}
+void newFrame(GLFWwindow* window)
+{
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+}
 
 /*
     cleanup methods
 */
 
 // terminate glfw
-void cleanup() {}
+void cleanup()
+{
+    glfwTerminate();
+}
 
 
 
@@ -143,7 +331,7 @@ int main() {
     }
 
     // shaders
-    GLuint shaderProgram = genShaderProgram("main.vs", "main.fs");
+    shaderProgram = genShaderProgram("main.vs", "main.fs");
     setOrthographicProjection(shaderProgram, 0, scrWidth, 0, scrHeight, 0.0f, 1.0f);
 
     // setup vertex data
