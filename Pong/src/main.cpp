@@ -269,10 +269,27 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height)
 }
 
 // process input
-void processInput(GLFWwindow* window)
+void processInput(GLFWwindow* window, float *offset)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+    {
+        offset[1] += 1.0f;
+    }
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+    {
+        offset[0] += 1.0f;
+    }
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+    {
+        offset[1] -= 1.0f;
+    }
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+    {
+        offset[0] -= 1.0f;
     }
 }
 
@@ -390,10 +407,13 @@ int main() {
         lastFrame += dt;
 
         // input
-        processInput(window);
+        processInput(window, offsets);
 
         // clear screen for new frame
         clearScreen();
+
+        // update
+        updateData<float>(vao.offsetVBO, 0, 1 * 2, offsets);
 
         // render object
         bindShader(shaderProgram);
