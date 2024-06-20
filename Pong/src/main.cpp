@@ -12,7 +12,7 @@ const char* title = "Pong";
 GLuint shaderProgram;
 
 // graphics parameters
-const float paddleSpeed = 75.0f;
+const float paddleSpeed = 300.0f;
 const float paddleHeight = 100.f;
 const float halfPaddleHeight = paddleHeight / 2.0f;
 const float paddleWidth = 10.f;
@@ -22,7 +22,29 @@ const float ballRadius = ballDiameter / 2.0f;
 const float offset = ballRadius;
 const float paddleBoundary = halfPaddleHeight + offset;
 
+/*
+    2d vector structure
+*/
+struct vec2 {
+    float x;
+    float y;
+};
 
+// public offset arrays
+vec2 paddleOffsets[2];
+vec2 ballOffset;
+
+// public velocities
+float paddleVelocities[2];
+vec2 initBallVelocity = { 150.0f, 150.0f };
+vec2 ballVelocity = { 150.0f, 150.0f };
+
+// game values
+unsigned int leftScore = 0;
+unsigned int rightScore = 0;
+bool isPaused = false;
+bool pauseKeyDown = false;
+float gameSpeed = 1.0f;
 
 /*
     initialization methods
@@ -332,44 +354,62 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height)
 
     // update projection matrix
     setOrthographicProjection(shaderProgram, 0, width, 0, height, 0.0f, 1.0f);
+
+    // update right paddle's x positions
+    paddleOffsets[1].x = width - 35.0f;
 }
 
 // process input
-void processInput(GLFWwindow* window, double dt, float *paddleOffsets)
+void processInput(GLFWwindow* window, double dt)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
     }
 
+    paddleVelocities[0] = 0.0f;
+    paddleVelocities[1] = 0.0f;
+    
     // left paddle
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
     {
-        if (paddleOffsets[1] < scrHeight - paddleBoundary)
+        if (paddleOffsets[0].y < scrHeight - paddleBoundary)
         {
-            paddleOffsets[1] += dt * paddleSpeed;
+            paddleVelocities[0] = paddleSpeed;
+        }
+        else {
+            paddleOffsets[0].y = scrHeight - paddleBoundary;
         }
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
     {
-        if (paddleOffsets[1] > paddleBoundary)
+        if (paddleOffsets[0].y > paddleBoundary)
         {
-            paddleOffsets[1] -= dt * paddleSpeed;
+            paddleVelocities[0] = -paddleSpeed;
+        }
+        else {
+            paddleOffsets[0].y = paddleBoundary;
         }
     }
 
     // right paddle
     if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
     {
-        if (paddleOffsets[3] < scrHeight - paddleBoundary)
+        if (paddleOffsets[1].y < scrHeight - paddleBoundary)
         {
-            paddleOffsets[3] += dt * paddleSpeed;
+            paddleVelocities[1] = paddleSpeed;
+        }
+        else {
+            paddleOffsets[1].y = scrHeight - paddleBoundary;
         }
     }
     if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
     {
-        if (paddleOffsets[3] > paddleBoundary)
+        if (paddleOffsets[1].y > paddleBoundary)
         {
-            paddleOffsets[3] -= dt * paddleSpeed;
+            paddleVelocities[1] = -paddleSpeed;
+        }
+        else {
+            paddleOffsets[1].y = paddleBoundary;
         }
     }
 }
@@ -406,6 +446,7 @@ void cleanup()
 int main() {
     std::cout << "Hello World!" << '\n';
 
+    // timing
     double dt = 0.0;
     double lastFrame = 0.0;
 
@@ -458,18 +499,16 @@ int main() {
     };
 
     // offsets array
-    float  paddleOffsets[] = {
-        35.0f, scrHeight / 2.0f,
-        scrWidth - 35.0f, scrHeight / 2.0f
-    };
+    paddleOffsets[0] = { 35.0f, scrHeight / 2.0f };
+    paddleOffsets[1] = { scrWidth - 35.0f, scrHeight / 2.0f };
 
     // size array
-    float paddleSizes[] = {
+    vec2 paddleSizes[] = {
         paddleWidth, paddleHeight
     };
 
-    //paddleVelocities[0] = 0.0f;
-    //paddleVelocities[1] = 0.0f;
+    paddleVelocities[0] = 0.0f;
+    paddleVelocities[1] = 0.0f;
     
     // setup VAO
     VAO paddleVAO;
@@ -480,11 +519,11 @@ int main() {
     setAttPointer<float>(paddleVAO.posVBO, 0, 2, GL_FLOAT, 2, 0);
 
     // offset VBO
-    genBufferObject<float>(paddleVAO.offsetVBO, GL_ARRAY_BUFFER, 2 * 2, paddleOffsets, GL_DYNAMIC_DRAW);
+    genBufferObject<vec2>(paddleVAO.offsetVBO, GL_ARRAY_BUFFER, 2, paddleOffsets, GL_DYNAMIC_DRAW);
     setAttPointer<float>(paddleVAO.offsetVBO, 1, 2, GL_FLOAT, 2, 0, 1);
 
     // size VBO
-    genBufferObject<float>(paddleVAO.sizeVBO, GL_ARRAY_BUFFER, 2 * 1, paddleSizes, GL_STATIC_DRAW);
+    genBufferObject<vec2>(paddleVAO.sizeVBO, GL_ARRAY_BUFFER, 1, paddleSizes, GL_STATIC_DRAW);
     setAttPointer<float>(paddleVAO.sizeVBO, 2, 2, GL_FLOAT, 2, 0, 2);
 
     // EBO
@@ -508,12 +547,9 @@ int main() {
     gen2DCircleArray(BallVertices, BallIndices, noTriangles, 0.5f);
     
     // offsets array
-    float ballOffsets[] = {
-        scrWidth / 2.0f, scrHeight / 2.0f
-    };
-
+    ballOffset = { scrWidth / 2.0f, scrHeight / 2.0f };
     // size array
-    float ballSizes[] = {
+    vec2 ballSizes[] = {
         ballDiameter, ballDiameter
     };
 
@@ -526,11 +562,11 @@ int main() {
     setAttPointer<float>(ballVAO.posVBO, 0, 2, GL_FLOAT, 2, 0);
 
     // offset VBO
-    genBufferObject<float>(ballVAO.offsetVBO, GL_ARRAY_BUFFER, 1 * 2, ballOffsets, GL_DYNAMIC_DRAW);
+    genBufferObject<vec2>(ballVAO.offsetVBO, GL_ARRAY_BUFFER, 1, &ballOffset, GL_DYNAMIC_DRAW);
     setAttPointer<float>(ballVAO.offsetVBO, 1, 2, GL_FLOAT, 2, 0, 1);
 
     // size VBO
-    genBufferObject<float>(ballVAO.sizeVBO, GL_ARRAY_BUFFER, 1 * 2, ballSizes, GL_DYNAMIC_DRAW);
+    genBufferObject<vec2>(ballVAO.sizeVBO, GL_ARRAY_BUFFER, 1, ballSizes, GL_DYNAMIC_DRAW);
     setAttPointer<float>(ballVAO.sizeVBO, 2, 2, GL_FLOAT, 2, 0, 1);
 
     // EBO
@@ -539,6 +575,14 @@ int main() {
     // unbind VBO and VAO
     unbindVAO();
 
+
+    // collision check buffer
+    unsigned int framesSinceLastCollision = -1;
+    unsigned int framesThreshold = 10;
+
+    
+
+    
     // render loop
     while (!glfwWindowShouldClose(window))
     {
@@ -547,14 +591,146 @@ int main() {
         lastFrame += dt;
 
         // input
-        processInput(window, dt, paddleOffsets);
+        processInput(window, dt);
 
+        
+
+        /*
+            physics
+        */
+        
+        
+
+
+        
+        /*
+            collision detection
+        */
+        if (framesSinceLastCollision != -1) {
+            framesSinceLastCollision++;
+        }
+
+
+        /*
+            wall collisions (do every frame)
+        */
+        if (ballOffset.y - ballRadius <= 0 || ballOffset.y + ballRadius >= scrHeight) {
+            // collision with floor or ceiling
+            ballVelocity.y *= -1;
+        }
+
+        unsigned char reset = 0;
+        if (ballOffset.x - ballRadius <= 0) {
+            // collision with left wall
+            rightScore++;
+            reset = 1;
+        }
+        else if (ballOffset.x + ballRadius >= scrWidth) {
+            // collision with right wall
+            leftScore++;
+            reset = 2;
+        }
+
+        if (reset) {
+            // put ball in middle
+            ballOffset.x = scrWidth / 2.0f;
+            ballOffset.y = scrHeight / 2.0f;
+
+            // reset velocity to initial
+            ballVelocity.x = reset == 1 ? initBallVelocity.x : -initBallVelocity.x; // go to player that just scores
+            ballVelocity.y = initBallVelocity.y;
+
+            
+        }
+
+        /*
+            paddle collisions
+            do only if it has been a certain amount of frames since the last collision
+        */
+        if (framesSinceLastCollision >= framesThreshold || framesSinceLastCollision == -1) {
+            int i = 0;
+            if (ballOffset.x > scrHeight / 2.0f) {
+                // if ball on right side, check with right paddle
+                i++;
+            }
+
+            // get distance from center of ball to center of paddle
+            vec2 distance = { std::abs(ballOffset.x - paddleOffsets[i].x), std::abs(ballOffset.y - paddleOffsets[i].y) };
+
+        // check if no collision possible
+            if (distance.x <= halfPaddleWidth + ballRadius &&
+                distance.y <= halfPaddleHeight + ballRadius) {
+                bool collision = false;
+                if (distance.x <= halfPaddleWidth && distance.x >= (halfPaddleWidth - ballRadius)) {
+                    // length collision
+                    collision = true;
+                    ballVelocity.x *= -1;
+                }
+                else if (distance.y <= halfPaddleHeight && distance.y >= (halfPaddleHeight - ballRadius)) {
+                    // width collision
+                    collision = true;
+                    ballVelocity.y *= -1;
+                }
+
+                if ((distance.x - halfPaddleWidth) * (distance.x - halfPaddleWidth) +
+                    (distance.y - halfPaddleHeight) * (distance.y - halfPaddleHeight)
+                    <= (ballRadius * ballRadius) &&
+                    !collision) {
+                    // squared distance is less than radius squared
+                    // so distance is less than radius
+                    collision = true;
+                    float signedDifference = paddleOffsets[i].x - ballOffset.x;
+                    if (i == 0) {
+                        // if checking the right paddle, want to reverse difference
+                        // because want to the left of the paddle to be positive
+                        signedDifference *= -1;
+                    }
+
+                    if ((distance.y - halfPaddleHeight) <= (signedDifference - halfPaddleWidth)) {
+                        // if closer to length, treat as length collision
+                        // use signed difference because don't want collision with back side of paddle
+                        ballVelocity.x *= -1;
+                    }
+                    else {
+                        // treat as width collision
+                        ballVelocity.y *= -1;
+                    }
+                }
+
+                if (collision) {
+                    // add to y velocity
+                    float k = 0.5f;
+                    ballVelocity.x *= 1.1f;
+                    ballVelocity.y += k * paddleVelocities[i];
+
+                    // reset frames counter
+                    framesSinceLastCollision = 0;
+                }
+            }
+        }
+
+        
+
+        // update paddle position
+        paddleOffsets[0].y += paddleVelocities[0] * dt * gameSpeed;
+        paddleOffsets[1].y += paddleVelocities[1] * dt * gameSpeed;
+        
+        // update ball position
+        ballOffset.x += ballVelocity.x * dt;
+        ballOffset.y += ballVelocity.y * dt;
+
+
+        
+
+
+
+        
         // clear screen for new frame
         clearScreen();
 
-        // update
-        updateData<float>(paddleVAO.offsetVBO, 0, 2 * 2, paddleOffsets);
-        updateData<float>(ballVAO.offsetVBO, 0, 1 * 2, ballOffsets);
+        // update data in GPU
+        updateData<vec2>(paddleVAO.offsetVBO, 0, 2, paddleOffsets);
+        updateData<vec2>(ballVAO.offsetVBO, 0, 1, &ballOffset);
 
         // render object
         bindShader(shaderProgram);
