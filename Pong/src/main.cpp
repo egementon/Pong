@@ -412,6 +412,17 @@ void processInput(GLFWwindow* window, double dt)
             paddleOffsets[1].y = paddleBoundary;
         }
     }
+
+    // pause key
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) {
+        pauseKeyDown = false;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !pauseKeyDown) {
+        // key just pressed
+        isPaused = !isPaused;
+        gameSpeed = isPaused ? 0.0f : 1.0f;
+        pauseKeyDown = true;
+    }
 }
 
 // clear screen
@@ -428,6 +439,10 @@ void newFrame(GLFWwindow* window)
     glfwPollEvents();
 }
 
+// display score
+void displayScore() {
+    std::cout << leftScore << " - " << rightScore << std::endl;
+}
 
 
 
@@ -580,8 +595,9 @@ int main() {
     unsigned int framesSinceLastCollision = -1;
     unsigned int framesThreshold = 10;
 
-    
+    displayScore();
 
+    
     
     // render loop
     while (!glfwWindowShouldClose(window))
@@ -640,7 +656,7 @@ int main() {
             ballVelocity.x = reset == 1 ? initBallVelocity.x : -initBallVelocity.x; // go to player that just scores
             ballVelocity.y = initBallVelocity.y;
 
-            
+            displayScore();
         }
 
         /*
@@ -716,8 +732,8 @@ int main() {
         paddleOffsets[1].y += paddleVelocities[1] * dt * gameSpeed;
         
         // update ball position
-        ballOffset.x += ballVelocity.x * dt;
-        ballOffset.y += ballVelocity.y * dt;
+        ballOffset.x += ballVelocity.x * dt * gameSpeed;
+        ballOffset.y += ballVelocity.y * dt * gameSpeed;
 
 
         
